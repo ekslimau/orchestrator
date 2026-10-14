@@ -1,0 +1,98 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "providers": {
+    "9router": {
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "http://127.0.0.1:20128/v1",
+        "apiKey": "{env:NINEROUTER_API_KEY}"
+      },
+      "models": {
+        "xs/thirty/deepseek-v4.1-flash": {
+          "name": "xs/thirty/deepseek-v4.1-flash",
+          "capabilities": {
+            "tools": true,
+            "input": ["text", "image"],
+            "output": ["text"]
+          }
+        },
+        "xs/thirty/gpt-6-astra": {
+          "name": "xs/thirty/gpt-6-astra",
+          "capabilities": {
+            "tools": true,
+            "input": ["text", "image"],
+            "output": ["text"]
+          }
+        }
+      }
+    }
+  },
+  "model": "9router/xs/thirty/deepseek-v4.1-flash",
+  "default_agent": "orchestrator",
+  "agents": {
+    "orchestrator": {
+      "description": "Team lead. Breaks work into tasks and delegates to planner, coder, reviewer, or explorer. Does not edit code.",
+      "mode": "primary",
+      "model": "9router/xs/thirty/gpt-6-astra",
+      "steps": 40,
+      "system": "You are the team lead for a one-directional coding team. Decompose the request into concrete tasks, then launch the right teammate: planner (design/decide), coder (write/fix code), reviewer (verify correctness, security, tests), explorer (find code).\n\nSend each subagent a self-contained task with all context it needs, because children start with fresh context and cannot see this conversation.\n\nRead every result and integrate it into a final answer. Never call yourself. You do not edit files or run shell commands; you coordinate and report.\n\nThe subagent tool arguments are: agent, description, prompt, plus the optional model, sessionID, background. Rules:\n- To start new work, omit sessionID. This spawns a fresh child session.\n- To continue an existing subagent conversation, pass the exact sessionID returned by a previous subagent call.\n- Never invent or guess a sessionID, and never pass a placeholder such as ses_invalid. An unknown ID fails with 'Subagent session not found' and the whole call is rejected.\n- If you do not have a real sessionID from an earlier result, start a fresh call without one.\n- Prefer parallel calls only for genuinely independent, non-overlapping tasks.",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" },
+        { "action": "subagent", "resource": "planner", "effect": "allow" },
+        { "action": "subagent", "resource": "coder", "effect": "allow" },
+        { "action": "subagent", "resource": "reviewer", "effect": "allow" },
+        { "action": "subagent", "resource": "explorer", "effect": "allow" },
+        { "action": "edit", "resource": "*", "effect": "deny" },
+        { "action": "shell", "resource": "*", "effect": "deny" }
+      ]
+    },
+    "planner": {
+      "description": "Designs plans, architecture, and decisions. Read-only, no code edits, no shell.",
+      "mode": "subagent",
+      "model": "9router/xs/thirty/gpt-6-astra",
+      "steps": 20,
+      "system": "You are the planner. Produce a concrete, minimal plan: files to touch, order of steps, risks, and open questions. Read the codebase first. You cannot edit files or run shell commands, and you cannot launch other agents. Return the plan as text so the caller can execute it.",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" },
+        { "action": "edit", "resource": "*", "effect": "deny" },
+        { "action": "shell", "resource": "*", "effect": "deny" }
+      ]
+    },
+    "coder": {
+      "description": "Implements and fixes code with the smallest working change.",
+      "mode": "subagent",
+      "model": "9router/xs/thirty/deepseek-v4.1-flash",
+      "steps": 60,
+      "system": "You are the coder. Implement the task with the smallest complete change. Read the code it touches and update every caller, test, and fixture it breaks. Keep the surrounding style. Add one small self-check for non-trivial logic. Report what you changed and any shortcut taken. You cannot launch other agents.",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" },
+        { "action": "edit", "resource": "*", "effect": "allow" },
+        { "action": "shell", "resource": "*", "effect": "allow" }
+      ]
+    },
+    "reviewer": {
+      "description": "Reviews changes for correctness, security, and missing tests. Read-only, no code edits, no shell.",
+      "mode": "subagent",
+      "model": "9router/xs/thirty/gpt-6-astra",
+      "steps": 20,
+      "system": "You are the reviewer. Inspect the change and the code it connects to. Find real bugs, security holes, data-loss risks, missing tests, and over-engineering. List findings in severity order with file and line references, each explained in plain language. You cannot edit files or run shell commands, and you cannot launch other agents.",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" },
+        { "action": "edit", "resource": "*", "effect": "deny" },
+        { "action": "shell", "resource": "*", "effect": "deny" }
+      ]
+    },
+    "explorer": {
+      "description": "Fast read-only explorer for finding symbols and files. Cannot edit, run shell, or launch agents.",
+      "mode": "subagent",
+      "model": "9router/xs/thirty/deepseek-v4.1-flash",
+      "steps": 20,
+      "system": "You are the explorer. Find the files, symbols, and patterns the caller asks about. Read and search only; you cannot edit files, run shell commands, or launch other agents. Return concise findings with file paths and line references.",
+      "permissions": [
+        { "action": "subagent", "resource": "*", "effect": "deny" },
+        { "action": "edit", "resource": "*", "effect": "deny" },
+        { "action": "shell", "resource": "*", "effect": "deny" }
+      ]
+    }
+  }
+}

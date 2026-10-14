@@ -1,0 +1,13 @@
+# OpenCode local state
+.opencode/cache/
+.opencode/log/
+*.log
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Editors
+.idea/
+.vscode/
+*.iml
